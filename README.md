@@ -27,10 +27,10 @@ pip install -r requirements.txt
 # Run notebooks in order: 01 → 02 → 03 → 04
 ```
 ## Screenshots
-![Executive Dashboard](powerbi\screenshots\page1_executive.png)
-![Customer Analytics](powerbi\screenshots\page2_customer.png)
-![Sales Analytics](powerbi\screenshots\page3_sales.png)
-![Churn Insights](powerbi\screenshots\page4_churn.png)
+![Executive Dashboard](powerbi/screenshots/page1_executive.png)
+![Customer Analytics](powerbi/screenshots/page2_customer.png)
+![Sales Analytics](powerbi/screenshots/page3_sales.png)
+![Churn Insights](powerbi/screenshots/page4_churn.png)
 
 ## Dataset Citation
 Chen, D. (2019). Online Retail II. UCI ML Repository (CC BY 4.0).
