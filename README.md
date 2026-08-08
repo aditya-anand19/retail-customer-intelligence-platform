@@ -29,7 +29,7 @@ pip install -r requirements.txt
 ## Screenshots
 ![Executive Dashboard](powerbi/screenshots/page1_executive.png)
 ![Customer Analytics](powerbi/screenshots/page2_customer.png)
-![Sales Analytics](powerbi/screenshots/page3_sales.png)
+![Sales Analytics](powerbi/screenshots/page3_Sales.png)
 ![Churn Insights](powerbi/screenshots/page4_churn.png)
 
 ## Dataset Citation
