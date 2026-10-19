@@ -1,16 +1,27 @@
 
 
 import os
+import re
 import sys
 import pandas as pd
 from google import genai
 
+# Load GEMINI_API_KEY from a .env file in the repo root (the file is git-ignored)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+except ImportError:
+    pass  # fall back to an environment variable set in the terminal
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not API_KEY:
     sys.exit(
         "GEMINI_API_KEY is not set.\n\n"
+        "Easiest: create a file named .env in the repo root containing one line:\n"
+        "  GEMINI_API_KEY=your-key\n\n"
+        "Or set it for this terminal only:\n"
+        "Windows Command Prompt:  set GEMINI_API_KEY=AIza...\n"
         "Windows PowerShell:  $env:GEMINI_API_KEY = \"AIza...\"\n"
         "Mac/Linux:           export GEMINI_API_KEY=\"AIza...\"\n\n"
         "Get a free key at https://aistudio.google.com/"
@@ -55,10 +66,10 @@ Dataset: UK e-commerce transaction history, approximately 1 million transactions
 over a two-year period. Customer-level features engineered from transaction data.
 
 MODEL
-Random Forest classifier predicting customer churn, benchmarked against a
-Logistic Regression baseline. Churn defined behaviourally as no purchase in the
-final 90 days of the observation window. Features computed only from data before
-the cutoff date to prevent leakage.
+Logistic Regression classifier predicting customer churn (test ROC-AUC 0.81),
+chosen over a Random Forest (ROC-AUC 0.78). Churn defined behaviourally as no
+purchase in the final 90 days of the observation window. Features computed only
+from data before the cutoff date to prevent leakage.
 
 RESULTS
 - Customers scored: {total_customers:,}
@@ -66,8 +77,9 @@ RESULTS
 - Historical revenue represented by the high-risk cohort: {high_rev:,.0f}
 - Average historical spend per high-risk customer: {high_avg:,.0f}
 - Share of total customer revenue sitting in the high-risk cohort: {rev_at_risk_pct:.1%}
-- Strongest churn predictors by feature importance: recency (days since last
-  purchase), followed by purchase frequency
+- Strongest churn predictors (model coefficients): recency (days since last
+  purchase) raises churn risk most; higher purchase frequency and buying a wider
+  range of products lower it
 """
 
 
@@ -86,7 +98,7 @@ Paragraph 1 (Situation): What the analysis found, at a high level. State the siz
 of the at-risk cohort and the revenue it represents.
 
 Paragraph 2 (Insight): Why these customers are at risk, based on the model's
-feature importance. Explain what recency being the dominant predictor means in
+coefficients. Explain what recency being the dominant predictor means in
 practical terms for how the client should think about their customer base.
 
 Paragraph 3 (Recommendation): What the client should do next, and what would need
@@ -107,10 +119,11 @@ try:
         config={
             "system_instruction": system_instruction,
             "temperature": 0.3,        # low = consistent, factual
-            "max_output_tokens": 800,
+            "max_output_tokens": 4096,  # room for the full three paragraphs
         },
     )
-    summary = response.text
+    summary = (response.text or "").strip()
+    finish = str(response.candidates[0].finish_reason) if response.candidates else "UNKNOWN"
 except Exception as e:
     sys.exit(
         f"\nAPI call failed: {e}\n\n"
@@ -121,8 +134,44 @@ except Exception as e:
     )
 
 
+# ---------- Validation: never publish an incomplete or unverified summary ----------
+problems = []
+
+# 1. Did the model finish, or was it cut off?
+if "STOP" not in finish:
+    problems.append(f"Response did not finish normally (finish_reason={finish}).")
+if summary.count("\n\n") < 2 and len(summary.split()) < 150:
+    problems.append("Summary looks truncated (fewer than three paragraphs).")
+
+# 2. Every number in the summary must appear in the facts we gave the model.
+def numbers_in(text):
+    found = re.findall(r"\d[\d,]*(?:\.\d+)?", text)
+    return {float(n.replace(",", "").rstrip(".")) for n in found}
+
+# Accept the same figure written in rounded forms: 29.04% -> 29%, 1,234,567 -> 1.2 (million) or 1,235 (thousand)
+allowed = set()
+for v in numbers_in(facts):
+    for scaled in (v, v / 1e3, v / 1e6):
+        for d in (0, 1, 2):
+            allowed.add(round(scaled, d))
+
+unverified = sorted(n for n in numbers_in(summary)
+                    if round(n, 2) not in allowed and n not in {1, 2, 3})
+if unverified:
+    problems.append("Figures not found in the source data: "
+                    + ", ".join(f"{n:g}" for n in unverified))
+
 os.makedirs("reports", exist_ok=True)
-with open("reports/executive_summary.txt", "w", encoding="utf-8") as f:
+if problems:
+    out_path = "reports/executive_summary_UNVERIFIED.txt"
+    print("\nVALIDATION FAILED - review before using:")
+    for p in problems:
+        print("  -", p)
+else:
+    out_path = "reports/executive_summary.txt"
+    print("\nValidation passed: complete response, every figure matches the source data.")
+
+with open(out_path, "w", encoding="utf-8") as f:
     f.write(summary)
 
 print("\n" + "=" * 70)
@@ -130,4 +179,4 @@ print("EXECUTIVE SUMMARY")
 print("=" * 70)
 print(summary)
 print("=" * 70)
-print("\nSaved to reports/executive_summary.txt")
+print(f"\nSaved to {out_path}")

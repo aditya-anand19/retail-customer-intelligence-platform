@@ -145,7 +145,7 @@ header_row(ws, 3, ["Parameter", "Value", "Source / Justification"])
 
 assumptions = [
     ("Total customers scored",        total_customers, "0",       "F8FAFC",
-     "Output of the Random Forest churn model"),
+     "Output of the Logistic Regression churn model"),
     ("High-risk customers",           high_n,          "0",       "F8FAFC",
      "Predicted churn probability > 0.70"),
     ("Avg annual spend, at-risk seg.", high_avg,       "#,##0.00","F8FAFC",
